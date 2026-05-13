@@ -1,6 +1,6 @@
 {
-  "name": "IVK Beoordelingstafel",
-  "description": "Professionele tool voor het beoordelen van IVK periodeverslagen inclusief rubrics en competentiemeting.",
+  "name": "Periodeverslag IVK",
+  "description": "Compacte tool voor het beoordelen van IVK periodeverslagen.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
