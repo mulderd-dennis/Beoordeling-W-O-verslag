@@ -153,11 +153,11 @@ export default function App() {
           </div>
           
           <div className="flex flex-col items-end gap-4">
-            <div className="bg-white p-2 border border-gray-200 shadow-sm print:shadow-none">
+            <div className="bg-white p-1 rounded-full border border-gray-200 shadow-sm print:shadow-none overflow-hidden">
               <img 
-                src="https://upload.wikimedia.org/wikipedia/commons/e/e0/De_Haagse_Hogeschool_logo.png" 
-                alt="HHS Logo" 
-                className="h-16 md:h-20 object-contain"
+                src="/input_file_0.png" 
+                alt="IVK Logo" 
+                className="h-20 w-20 md:h-24 md:w-24 object-contain"
                 referrerPolicy="no-referrer"
               />
             </div>
