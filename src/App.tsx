@@ -208,11 +208,16 @@ export default function App() {
   // Assessment info
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [assessor, setAssessor] = useState("D. Mulder");
-  const [period, setPeriod] = useState("W&O5");
+  const [period, setPeriod] = useState("W&O1");
 
   // Prerequisites
-  const [prereqMet, setPrereqMet] = useState<boolean | null>(null);
-  const [beroepsproductenMet, setBeroepsproductenMet] = useState<boolean>(false);
+  const [prereqChecks, setPrereqChecks] = useState({
+    details: false,
+    language: false,
+    structure: false,
+    format: false,
+    products: false,
+  });
   const [prereqComment, setPrereqComment] = useState("");
 
   // Scores
@@ -253,20 +258,28 @@ export default function App() {
     return { totalPoints, hasZero, activeRowsCount, maxPoints, cijfer, cijferNum, zeroReasons };
   }, [scores]);
 
+  const isYear3 = period === "W&O5" || period === "W&O6";
+
+  const allPrereqsMet = useMemo(() => {
+    const mainMet = prereqChecks.details && prereqChecks.language && prereqChecks.structure && prereqChecks.format;
+    if (isYear3) {
+      return mainMet && prereqChecks.products;
+    }
+    return mainMet;
+  }, [prereqChecks, isYear3]);
+
   const assessmentResult = useMemo(() => {
     if (rowAnalysis.cijfer === "—") return "IN AFWACHTING";
     
-    const prereqNotMet = prereqMet !== true || !beroepsproductenMet;
-    
     if (rowAnalysis.cijferNum >= 5.5) {
-      if (prereqNotMet) {
+      if (!allPrereqsMet) {
         return "NIET VOLDAAN AAN DE VOORWAARDELIJKE EISEN";
       }
       return "VOLDOENDE";
     }
     
     return "ONVOLDOENDE";
-  }, [rowAnalysis, prereqMet, beroepsproductenMet]);
+  }, [rowAnalysis, allPrereqsMet]);
 
   const handleScoreChange = (compId: number, field: keyof CompetencyScore, value: number | string) => {
     setScores(prev => {
@@ -286,7 +299,7 @@ export default function App() {
       // Handle auto-toelichting for NA
       if (value === 'NA' && ['A', 'B', 'C1', 'C2'].includes(field)) {
         const category = CATEGORIES.find(cat => cat.id === (field === 'C1' ? 'C1' : field === 'C2' ? 'C2' : field));
-        const naText = `Aan ${category?.title} is niet gewerkt (NA). Deze rij telt niet mee in de berekening.`;
+        const naText = `Aan ${category?.title} is niet aan gewerkt (NA). Deze rij telt niet mee in de berekening.`;
         
         if (!newToelichting.includes(naText)) {
           newToelichting = newToelichting ? `${newToelichting.trim()}\n${naText}` : naText;
@@ -307,9 +320,14 @@ export default function App() {
   const resetForm = () => {
     if (confirm("Weet je zeker dat je het hele formulier wilt leegmaken?")) {
       setSelectedStudent(null);
-      setPeriod("W&O5");
-      setPrereqMet(null);
-      setBeroepsproductenMet(false);
+      setPeriod("W&O1");
+      setPrereqChecks({
+        details: false,
+        language: false,
+        structure: false,
+        format: false,
+        products: false,
+      });
       setPrereqComment("");
       setScores(COMPETENCIES.reduce((acc, comp) => ({
         ...acc,
@@ -557,7 +575,7 @@ export default function App() {
                   onChange={(e) => setPeriod(e.target.value)}
                   className="w-full bg-transparent border-none focus:ring-0 font-bold text-base appearance-none cursor-pointer pr-8 outline-none"
                 >
-                  {["W&O5", "W&O6", "W&O7", "W&O8"].map(p => (
+                  {["W&O1", "W&O2", "W&O3", "W&O4", "W&O5", "W&O6"].map(p => (
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
@@ -605,12 +623,12 @@ export default function App() {
                     Fail: Score 0 op {rowAnalysis.zeroReasons.join(", ")}
                   </div>
                 )}
-                {prereqMet === false && (
+                {(!prereqChecks.details || !prereqChecks.language || !prereqChecks.structure || !prereqChecks.format) && (
                   <div className="mt-1 text-[7px] font-bold text-red-500 uppercase max-w-[120px]">
                     Fail: Voorwaarden NOK
                   </div>
                 )}
-                {!beroepsproductenMet && (
+                {isYear3 && !prereqChecks.products && (
                   <div className="mt-1 text-[7px] font-bold text-red-500 uppercase max-w-[120px]">
                     Fail: Producten missen
                   </div>
@@ -626,51 +644,86 @@ export default function App() {
             <AlertTriangle size={14} />
             <span className="text-[10px] font-bold uppercase tracking-widest">Voorwaardelijke eisen</span>
           </div>
-          <div className="p-3 flex flex-row gap-4 items-center">
-            <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
-              <p className="flex gap-1 items-start"><span className="font-bold text-[#141414]">•</span> Verslag voorzien van datum, naam, studentnr.</p>
-              <p className="flex gap-1 items-start"><span className="font-bold text-[#141414]">•</span> Spelling en grammatica zijn correct.</p>
-              <p className="flex gap-1 items-start"><span className="font-bold text-[#141414]">•</span> Heldere structuur.</p>
-              <p className="flex gap-1 items-start"><span className="font-bold text-[#141414]">•</span> Word bestand (*.doc / *.docx).</p>
+          <div className="p-3 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-xs">
+              <div 
+                onClick={() => setPrereqChecks(prev => ({ ...prev, details: !prev.details }))}
+                className="flex items-center gap-2 cursor-pointer select-none py-0.5 group"
+              >
+                <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all ${
+                  prereqChecks.details ? 'bg-[#009B48] border-[#009B48] text-white' : 'border-gray-300 bg-white group-hover:border-[#009B48]'
+                }`}>
+                  {prereqChecks.details && <span className="text-[10px] sm:text-xs font-black">✓</span>}
+                </div>
+                <span className="text-gray-700 font-medium select-none">Verslag voorzien van datum, naam, studentnr.</span>
+              </div>
+
+              <div 
+                onClick={() => setPrereqChecks(prev => ({ ...prev, language: !prev.language }))}
+                className="flex items-center gap-2 cursor-pointer select-none py-0.5 group"
+              >
+                <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all ${
+                  prereqChecks.language ? 'bg-[#009B48] border-[#009B48] text-white' : 'border-gray-300 bg-white group-hover:border-[#009B48]'
+                }`}>
+                  {prereqChecks.language && <span className="text-[10px] sm:text-xs font-black">✓</span>}
+                </div>
+                <span className="text-gray-700 font-medium select-none">Spelling en grammatica zijn correct.</span>
+              </div>
+
+              <div 
+                onClick={() => setPrereqChecks(prev => ({ ...prev, structure: !prev.structure }))}
+                className="flex items-center gap-2 cursor-pointer select-none py-0.5 group"
+              >
+                <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all ${
+                  prereqChecks.structure ? 'bg-[#009B48] border-[#009B48] text-white' : 'border-gray-300 bg-white group-hover:border-[#009B48]'
+                }`}>
+                  {prereqChecks.structure && <span className="text-[10px] sm:text-xs font-black">✓</span>}
+                </div>
+                <span className="text-gray-700 font-medium select-none">Heldere structuur.</span>
+              </div>
+
+              <div 
+                onClick={() => setPrereqChecks(prev => ({ ...prev, format: !prev.format }))}
+                className="flex items-center gap-2 cursor-pointer select-none py-0.5 group"
+              >
+                <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all ${
+                  prereqChecks.format ? 'bg-[#009B48] border-[#009B48] text-white' : 'border-gray-300 bg-white group-hover:border-[#009B48]'
+                }`}>
+                  {prereqChecks.format && <span className="text-[10px] sm:text-xs font-black">✓</span>}
+                </div>
+                <span className="text-gray-700 font-medium select-none">Word bestand (*.doc / *.docx).</span>
+              </div>
+
+              <div 
+                onClick={() => setPrereqChecks(prev => ({ ...prev, products: !prev.products }))}
+                className="flex items-center gap-2 cursor-pointer select-none py-0.5 group md:col-span-2"
+              >
+                <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all ${
+                  prereqChecks.products ? 'bg-[#009B48] border-[#009B48] text-white' : 'border-gray-300 bg-white group-hover:border-[#009B48]'
+                }`}>
+                  {prereqChecks.products && <span className="text-[10px] sm:text-xs font-black">✓</span>}
+                </div>
+                <span className="text-gray-700 font-medium select-none flex items-center gap-1.5 flex-wrap">
+                  <span>Beroepsproducten toegevoegd</span>
+                  {isYear3 ? (
+                    <span className="text-[7px] tracking-widest uppercase bg-red-100 text-red-700 font-black px-1.5 py-0.5 rounded leading-none">
+                      VERPLICHT (W&O5 & W&O6)
+                    </span>
+                  ) : (
+                    <span className="text-[7px] tracking-widest uppercase bg-gray-100 text-gray-500 font-bold px-1.5 py-0.5 rounded leading-none">
+                      optioneel (jaar 1 & 2)
+                    </span>
+                  )}
+                </span>
+              </div>
             </div>
             
-            <div className="flex flex-row items-center gap-3">
-              <div className="flex flex-row gap-2">
-                <button 
-                  onClick={() => setBeroepsproductenMet(!beroepsproductenMet)}
-                  className={`px-3 py-1.5 flex flex-col items-center gap-0.5 border transition-all cursor-pointer ${
-                    beroepsproductenMet ? "bg-[#009B48] text-white border-[#009B48]" : "bg-white border-gray-200 text-gray-400 hover:border-[#009B48]"
-                  }`}
-                >
-                  <ClipboardList size={14} />
-                  <span className="text-[7px] font-bold uppercase">Producten {beroepsproductenMet ? "OK" : "NOK"}</span>
-                </button>
-                <div className="flex flex-row border border-gray-200">
-                  <button 
-                    onClick={() => setPrereqMet(true)}
-                    className={`px-3 py-1.5 flex flex-col items-center gap-0.5 transition-all cursor-pointer border-r border-gray-200 ${
-                      prereqMet === true ? "bg-green-600 text-white" : "bg-white text-gray-300"
-                    }`}
-                  >
-                    <CheckCircle2 size={14} />
-                    <span className="text-[7px] font-bold uppercase text-inherit">Vold.</span>
-                  </button>
-                  <button 
-                    onClick={() => setPrereqMet(false)}
-                    className={`px-3 py-1.5 flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
-                      prereqMet === false ? "bg-red-600 text-white" : "bg-white text-gray-300"
-                    }`}
-                  >
-                    <XCircle size={14} />
-                    <span className="text-[7px] font-bold uppercase text-inherit">Onvold.</span>
-                  </button>
-                </div>
-              </div>
+            <div className="flex flex-row items-center gap-3 w-full md:w-auto">
               <textarea 
                 placeholder="Toelichting..."
                 value={prereqComment}
                 onChange={(e) => setPrereqComment(e.target.value)}
-                className="w-48 h-10 text-[10px] border-gray-200 focus:ring-[#009B48] focus:border-[#009B48] resize-none outline-none p-1 border shadow-inner"
+                className="w-full md:w-48 h-12 text-[10px] border-gray-200 focus:ring-[#009B48] focus:border-[#009B48] resize-none outline-none p-1.5 border shadow-inner rounded"
               />
             </div>
           </div>
@@ -780,7 +833,7 @@ export default function App() {
             <div className="flex gap-3">
               <div className="flex gap-1 items-baseline">
                 <span className="text-xs font-black text-blue-500">NA</span>
-                <span className="text-[7px] uppercase font-bold text-gray-500">Niet gewerkt</span>
+                <span className="text-[7px] uppercase font-bold text-gray-500">Niet aan gewerkt</span>
               </div>
               {[0, 1, 2, 3, 4].map(v => (
                 <div key={v} className="flex gap-1 items-baseline">
