@@ -13,9 +13,186 @@ import {
   AlertTriangle,
   ChevronDown,
   ClipboardList,
-  LayoutGrid
+  LayoutGrid,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+
+// Mathematical converter from OKLCH to sRGB to bypass browser limitations & fast parsing
+const oklchToRgb = (lVal: number, cVal: number, hVal: number): [number, number, number] => {
+  const hRad = (hVal * Math.PI) / 180;
+  const a = cVal * Math.cos(hRad);
+  const b = cVal * Math.sin(hRad);
+
+  const l_ = lVal + 0.3963377774 * a + 0.2158037573 * b;
+  const m_ = lVal - 0.1055613458 * a - 0.0638541728 * b;
+  const s_ = lVal - 0.0894841775 * a - 1.2914855480 * b;
+
+  const l_lin = l_ * l_ * l_;
+  const m_lin = m_ * m_ * m_;
+  const s_lin = s_ * s_ * s_;
+
+  let r = +4.0767416621 * l_lin - 3.3077115913 * m_lin + 0.2309699292 * s_lin;
+  let g = -1.2684380046 * l_lin + 2.6097574011 * m_lin - 0.3413193965 * s_lin;
+  let b_ = -0.0041960863 * l_lin - 0.7034186147 * m_lin + 1.7076147010 * s_lin;
+
+  const f = (x: number) => {
+    if (x <= 0.0031308) return 12.92 * x;
+    return 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
+  };
+
+  r = Math.max(0, Math.min(1, r));
+  g = Math.max(0, Math.min(1, g));
+  b_ = Math.max(0, Math.min(1, b_));
+
+  return [
+    Math.round(f(r) * 255),
+    Math.round(f(g) * 255),
+    Math.round(f(b_) * 255)
+  ];
+};
+
+const oklabToRgb = (lVal: number, aVal: number, bVal: number): [number, number, number] => {
+  const l_ = lVal + 0.3963377774 * aVal + 0.2158037573 * bVal;
+  const m_ = lVal - 0.1055613458 * aVal - 0.0638541728 * bVal;
+  const s_ = lVal - 0.0894841775 * aVal - 1.2914855480 * bVal;
+
+  const l_lin = l_ * l_ * l_;
+  const m_lin = m_ * m_ * m_;
+  const s_lin = s_ * s_ * s_;
+
+  let r = +4.0767416621 * l_lin - 3.3077115913 * m_lin + 0.2309699292 * s_lin;
+  let g = -1.2684380046 * l_lin + 2.6097574011 * m_lin - 0.3413193965 * s_lin;
+  let b_ = -0.0041960863 * l_lin - 0.7034186147 * m_lin + 1.7076147010 * s_lin;
+
+  const f = (x: number) => {
+    if (x <= 0.0031308) return 12.92 * x;
+    return 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
+  };
+
+  r = Math.max(0, Math.min(1, r));
+  g = Math.max(0, Math.min(1, g));
+  b_ = Math.max(0, Math.min(1, b_));
+
+  return [
+    Math.round(f(r) * 255),
+    Math.round(f(g) * 255),
+    Math.round(f(b_) * 255)
+  ];
+};
+
+const convertModernColors = (colorStr: string): string => {
+  if (!colorStr) return colorStr;
+  
+  let result = colorStr;
+  
+  // Convert OKLCH
+  if (result.includes('oklch')) {
+    result = result.replace(
+      /oklch\(\s*([-\d.]+%?)\s*,?\s*([-\d.]+%?)\s*,?\s*([-\d.]+(?:deg|rad|turn)?)(?:\s*[\/,\s]\s*([-\d.]+%?))?\s*\)/gi,
+      (match, g1, g2, g3, g4) => {
+        try {
+          const lVal = parseFloat(g1);
+          const l = g1.endsWith('%') ? lVal / 100 : lVal;
+          
+          const cVal = parseFloat(g2);
+          const c = g2.endsWith('%') ? cVal / 100 : cVal;
+          
+          let h = parseFloat(g3);
+          if (g3.endsWith('rad')) {
+            h = (parseFloat(g3) * 180) / Math.PI;
+          } else if (g3.endsWith('turn')) {
+            h = parseFloat(g3) * 360;
+          }
+          
+          const alpha = g4 ? (g4.endsWith('%') ? parseFloat(g4) / 100 : parseFloat(g4)) : 1;
+          
+          const [r, g, b] = oklchToRgb(l, c, h);
+          if (alpha === 1) {
+            return `rgb(${r}, ${g}, ${b})`;
+          } else {
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+          }
+        } catch (e) {
+          return 'rgb(0,0,0)';
+        }
+      }
+    );
+  }
+  
+  // Convert OKLAB
+  if (result.includes('oklab')) {
+    result = result.replace(
+      /oklab\(\s*([-\d.]+%?)\s*,?\s*([-\d.]+%?)\s*,?\s*([-\d.]+%?)(?:\s*[\/,\s]\s*([-\d.]+%?))?\s*\)/gi,
+      (match, g1, g2, g3, g4) => {
+        try {
+          const lVal = parseFloat(g1);
+          const l = g1.endsWith('%') ? lVal / 100 : lVal;
+          
+          const aVal = parseFloat(g2);
+          const a = g2.endsWith('%') ? aVal / 100 : aVal;
+          
+          const bVal = parseFloat(g3);
+          const bValNum = g3.endsWith('%') ? bVal / 100 : bVal;
+          
+          const alpha = g4 ? (g4.endsWith('%') ? parseFloat(g4) / 100 : parseFloat(g4)) : 1;
+          
+          const [r, g, b] = oklabToRgb(l, a, bValNum);
+          if (alpha === 1) {
+            return `rgb(${r}, ${g}, ${b})`;
+          } else {
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+          }
+        } catch (e) {
+          return 'rgb(0,0,0)';
+        }
+      }
+    );
+  }
+  
+  return result;
+};
+
+const convertClonedModernStyles = (clonedDoc: Document) => {
+  // Replace OKLCH and OKLAB in stylesheet contents
+  const styleTags = clonedDoc.getElementsByTagName('style');
+  for (let i = 0; i < styleTags.length; i++) {
+    const styleTag = styleTags[i];
+    if (styleTag.textContent && (styleTag.textContent.includes('oklch') || styleTag.textContent.includes('oklab'))) {
+      styleTag.textContent = convertModernColors(styleTag.textContent);
+    }
+  }
+
+  // Also pre-emptively convert inline styles of elements
+  const elements = clonedDoc.getElementsByTagName('*');
+  for (let i = 0; i < elements.length; i++) {
+    const el = elements[i] as HTMLElement;
+    if (!el.style) continue;
+    
+    const propsToConvert = [
+      'color',
+      'backgroundColor',
+      'borderColor',
+      'borderTopColor',
+      'borderRightColor',
+      'borderBottomColor',
+      'borderLeftColor',
+      'outlineColor',
+      'fill',
+      'stroke',
+      'boxShadow'
+    ];
+    
+    propsToConvert.forEach(prop => {
+      const val = el.style[prop as any];
+      if (val && (val.includes('oklch') || val.includes('oklab'))) {
+        el.style[prop as any] = convertModernColors(val);
+      }
+    });
+  }
+};
 
 type GradeValue = 0 | 1 | 2 | 3 | 4 | 'NA';
 
@@ -42,7 +219,7 @@ export default function App() {
   const [scores, setScores] = useState<Record<number, CompetencyScore>>(
     COMPETENCIES.reduce((acc, comp) => ({
       ...acc,
-      [comp.id]: { A: 0, B: 0, C1: 0, C2: 0, toelichting: "" }
+      [comp.id]: { A: 'NA', B: 0, C1: 0, C2: 0, toelichting: "" }
     }), {})
   );
 
@@ -78,8 +255,18 @@ export default function App() {
 
   const assessmentResult = useMemo(() => {
     if (rowAnalysis.cijfer === "—") return "IN AFWACHTING";
-    return rowAnalysis.cijferNum >= 5.5 ? "VOLDOENDE" : "ONVOLDOENDE";
-  }, [rowAnalysis]);
+    
+    const prereqNotMet = prereqMet !== true || !beroepsproductenMet;
+    
+    if (rowAnalysis.cijferNum >= 5.5) {
+      if (prereqNotMet) {
+        return "NIET VOLDAAN AAN DE VOORWAARDELIJKE EISEN";
+      }
+      return "VOLDOENDE";
+    }
+    
+    return "ONVOLDOENDE";
+  }, [rowAnalysis, prereqMet, beroepsproductenMet]);
 
   const handleScoreChange = (compId: number, field: keyof CompetencyScore, value: number | string) => {
     setScores(prev => {
@@ -126,8 +313,117 @@ export default function App() {
       setPrereqComment("");
       setScores(COMPETENCIES.reduce((acc, comp) => ({
         ...acc,
-        [comp.id]: { A: 0, B: 0, C1: 0, C2: 0, toelichting: "" }
+        [comp.id]: { A: 'NA', B: 0, C1: 0, C2: 0, toelichting: "" }
       }), {}));
+    }
+  };
+
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const downloadPDF = async () => {
+    const element = document.getElementById('evaluation-sheet');
+    if (!element) return;
+
+    setIsDownloading(true);
+
+    const originalGetComputedStyle = window.getComputedStyle;
+
+    try {
+      // Temporarily patch window.getComputedStyle to intercept oklch and oklab color values during rendering
+      window.getComputedStyle = function (elt, pseudoElt) {
+        const style = originalGetComputedStyle.call(this, elt, pseudoElt);
+        return new Proxy(style, {
+          get(target, prop) {
+            if (prop === 'getPropertyValue') {
+              return (propertyName: string) => {
+                const val = target.getPropertyValue(propertyName);
+                return typeof val === 'string' ? convertModernColors(val) : val;
+              };
+            }
+            const val = Reflect.get(target, prop);
+            if (typeof val === 'function') {
+              return val.bind(target);
+            }
+            return typeof val === 'string' ? convertModernColors(val) : val;
+          }
+        });
+      };
+
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      const formattedDate = `${yyyy}${mm}${dd}`;
+      
+      const studentNum = selectedStudent?.id || "ONBEKEND";
+      const studentName = selectedStudent?.name || "Onbekende student";
+      const selectedPeriod = period || "ONBEKEND";
+      
+      const fileName = `${formattedDate}-PV-${selectedPeriod}-${studentNum}-${studentName}.pdf`;
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#FFFFFF',
+        onclone: (clonedDoc) => {
+          // Process OKLCH and OKLAB stylesheet styles in the cloned document
+          convertClonedModernStyles(clonedDoc);
+          
+          // Also patch getComputedStyle on the defaultView of the cloned document
+          const defaultView = clonedDoc.defaultView || window;
+          if (defaultView) {
+            const originalClonedGetComputedStyle = defaultView.getComputedStyle;
+            defaultView.getComputedStyle = function (elt, pseudoElt) {
+              const style = originalClonedGetComputedStyle.call(this, elt, pseudoElt);
+              return new Proxy(style, {
+                get(target, prop) {
+                  if (prop === 'getPropertyValue') {
+                    return (propertyName: string) => {
+                      const val = target.getPropertyValue(propertyName);
+                      return typeof val === 'string' ? convertModernColors(val) : val;
+                    };
+                  }
+                  const val = Reflect.get(target, prop);
+                  if (typeof val === 'function') {
+                    return val.bind(target);
+                  }
+                  return typeof val === 'string' ? convertModernColors(val) : val;
+                }
+              });
+            };
+          }
+        },
+        ignoreElements: (el) => {
+          return el.classList.contains('print:hidden') || el.hasAttribute('data-html2canvas-ignore');
+        }
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      const imgWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(fileName);
+    } catch (error) {
+      console.error("PDF download error:", error);
+    } finally {
+      window.getComputedStyle = originalGetComputedStyle;
+      setIsDownloading(false);
     }
   };
 
@@ -158,7 +454,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F0F4F2] text-[#141414] font-sans p-2 md:p-4 print:p-0 print:bg-white text-[13px]">
-      <div className="max-w-7xl mx-auto space-y-3">
+      <div id="evaluation-sheet" className="max-w-7xl mx-auto space-y-3 bg-white p-4 md:p-6 rounded-lg print:p-0 print:shadow-none shadow-sm">
         {/* Header */}
         <header className="flex flex-row items-center justify-between border-b-2 border-[#009B48] pb-2 gap-4">
           <div className="flex flex-col">
@@ -170,7 +466,7 @@ export default function App() {
             </h2>
           </div>
           
-          <div className="flex items-center gap-2 print:hidden">
+          <div className="flex items-center gap-2 print:hidden" data-html2canvas-ignore="true">
             <button 
               onClick={resetForm}
               className="flex items-center gap-1 px-2 py-1 border border-red-500 text-red-500 hover:bg-red-50 transition-colors uppercase text-[10px] font-bold tracking-widest cursor-pointer"
@@ -179,9 +475,26 @@ export default function App() {
             </button>
             <button 
               onClick={printForm}
-              className="flex items-center gap-1 px-3 py-1 bg-[#009B48] text-white hover:bg-[#007E3A] transition-colors uppercase text-[10px] font-bold tracking-widest cursor-pointer shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0"
+              className="flex items-center gap-1 px-3 py-1 bg-gray-600 text-white hover:bg-gray-700 transition-colors uppercase text-[10px] font-bold tracking-widest cursor-pointer shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0"
             >
-              <Printer size={14} /> Downloaden (PDF)
+              <Printer size={14} /> Printen
+            </button>
+            <button 
+              onClick={downloadPDF}
+              disabled={isDownloading}
+              className={`flex items-center gap-1 px-3 py-1 bg-[#009B48] text-white hover:bg-[#007E3A] transition-colors uppercase text-[10px] font-bold tracking-widest cursor-pointer shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 ${
+                isDownloading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {isDownloading ? (
+                <>
+                  <RotateCcw className="animate-spin" size={14} /> Bezig...
+                </>
+              ) : (
+                <>
+                  <Download size={14} /> Downloaden (PDF)
+                </>
+              )}
             </button>
           </div>
         </header>
@@ -255,13 +568,13 @@ export default function App() {
             </div>
           </div>
 
-          <div className={`relative border-2 flex flex-col justify-center items-center px-4 py-2 transition-colors duration-500 ${
+          <div className={`relative border-2 flex flex-col justify-center items-center px-4 py-2 transition-colors duration-500 text-center ${
             assessmentResult === "VOLDOENDE" ? "bg-green-50 border-green-600" : 
-            assessmentResult === "ONVOLDOENDE" ? "bg-red-50 border-red-600" : "bg-yellow-50 border-yellow-600"
+            assessmentResult === "IN AFWACHTING" ? "bg-yellow-50 border-yellow-600" : "bg-red-50 border-red-600"
           }`}>
             <label className={`absolute top-1 left-1 text-[8px] font-black uppercase tracking-widest text-white px-1.5 py-0.5 ${
                assessmentResult === "VOLDOENDE" ? "bg-green-600" : 
-               assessmentResult === "ONVOLDOENDE" ? "bg-red-600" : "bg-yellow-600"
+               assessmentResult === "IN AFWACHTING" ? "bg-yellow-600" : "bg-red-600"
             }`}>
               Resultaat
             </label>
@@ -271,17 +584,19 @@ export default function App() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.1 }}
-                className="text-center"
+                className="text-center flex flex-col items-center justify-center"
               >
                 <div className={`text-4xl font-black leading-none ${
                    assessmentResult === "VOLDOENDE" ? "text-green-700" : 
-                   assessmentResult === "ONVOLDOENDE" ? "text-red-700" : "text-amber-700"
+                   assessmentResult === "IN AFWACHTING" ? "text-amber-700" : "text-red-700"
                 }`}>
                   {rowAnalysis.cijfer}
                 </div>
-                <div className={`text-[10px] font-bold uppercase tracking-widest leading-tight ${
+                <div className={`font-bold uppercase mt-1 leading-tight ${
+                  assessmentResult.length > 15 ? 'text-[8px] tracking-wide max-w-[150px]' : 'text-[10px] tracking-widest'
+                } ${
                   assessmentResult === "VOLDOENDE" ? "text-green-600" : 
-                  assessmentResult === "ONVOLDOENDE" ? "text-red-600" : "text-amber-600"
+                  assessmentResult === "IN AFWACHTING" ? "text-amber-600" : "text-red-600"
                 }`}>
                   {assessmentResult}
                 </div>
@@ -443,9 +758,9 @@ export default function App() {
                       <span className="text-[8px] opacity-70">MAX: {rowAnalysis.maxPoints}</span>
                       <span className="text-sm font-black">Cijfer: {rowAnalysis.cijfer}</span>
                     </div>
-                    <div className={`px-2 py-0.5 text-[9px] font-black uppercase ${
+                    <div className={`px-2 py-0.5 text-[9px] font-black uppercase max-w-[200px] leading-tight ${
                       assessmentResult === 'VOLDOENDE' ? 'bg-white text-green-600' : 
-                      assessmentResult === 'ONVOLDOENDE' ? 'bg-red-800 text-white' : 'bg-amber-500 text-black'
+                      assessmentResult === 'IN AFWACHTING' ? 'bg-amber-500 text-black' : 'bg-red-800 text-white'
                     }`}>
                       {assessmentResult}
                     </div>
@@ -503,9 +818,11 @@ export default function App() {
               <span className="text-2xl font-black">{rowAnalysis.cijfer}</span>
             </div>
             <div className="h-8 w-px bg-white/20 mx-3" />
-            <div className={`text-[10px] font-black uppercase ${
+            <div className={`font-black uppercase ${
+              assessmentResult.length > 15 ? 'text-[8px] max-w-[150px] leading-tight text-right' : 'text-[10px]'
+            } ${
               assessmentResult === 'VOLDOENDE' ? 'text-green-300' : 
-              assessmentResult === 'ONVOLDOENDE' ? 'text-red-200' : 'text-amber-200'
+              assessmentResult === 'IN AFWACHTING' ? 'text-amber-200' : 'text-red-200'
             }`}>
               {assessmentResult}
             </div>
