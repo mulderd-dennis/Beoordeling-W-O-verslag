@@ -31,7 +31,7 @@ export default function App() {
   // Assessment info
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [assessor, setAssessor] = useState("D. Mulder");
-  const [period, setPeriod] = useState("W&O5 of W&O 6");
+  const [period, setPeriod] = useState("W&O5");
 
   // Prerequisites
   const [prereqMet, setPrereqMet] = useState<boolean | null>(null);
@@ -77,12 +77,9 @@ export default function App() {
   }, [scores]);
 
   const assessmentResult = useMemo(() => {
-    if (prereqMet === false) return "ONVOLDOENDE";
-    if (!beroepsproductenMet) return "ONVOLDOENDE (Producten missen)";
-    if (prereqMet === null) return "IN AFWACHTING";
-    if (rowAnalysis.hasZero) return "ONVOLDOENDE (Score 0)";
+    if (rowAnalysis.cijfer === "—") return "IN AFWACHTING";
     return rowAnalysis.cijferNum >= 5.5 ? "VOLDOENDE" : "ONVOLDOENDE";
-  }, [prereqMet, beroepsproductenMet, rowAnalysis]);
+  }, [rowAnalysis]);
 
   const handleScoreChange = (compId: number, field: keyof CompetencyScore, value: number | string) => {
     setScores(prev => {
@@ -123,6 +120,7 @@ export default function App() {
   const resetForm = () => {
     if (confirm("Weet je zeker dat je het hele formulier wilt leegmaken?")) {
       setSelectedStudent(null);
+      setPeriod("W&O5");
       setPrereqMet(null);
       setBeroepsproductenMet(false);
       setPrereqComment("");
@@ -134,7 +132,28 @@ export default function App() {
   };
 
   const printForm = () => {
+    const originalTitle = document.title;
+    
+    // YYYYMMDD based on current local time
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const formattedDate = `${yyyy}${mm}${dd}`;
+    
+    // Construct filename variables
+    const studentNum = selectedStudent?.id || "ONBEKEND";
+    const studentName = selectedStudent?.name || "Onbekende student";
+    const selectedPeriod = period || "ONBEKEND";
+    
+    // Set custom page title format: [YYYYMMDD]-PV-[PERIODE]-[STUDENTNUMMER]-[Naam student]
+    document.title = `${formattedDate}-PV-${selectedPeriod}-${studentNum}-${studentName}`;
+    
     window.print();
+    
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 150);
   };
 
   return (
@@ -185,7 +204,7 @@ export default function App() {
                 >
                   <option value="">Selecteer student...</option>
                   {STUDENTS.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.id})</option>
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
                 <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-[#009B48]">
@@ -215,16 +234,24 @@ export default function App() {
               />
             </div>
 
-            <div className="border border-[#141414] p-2 bg-white">
+            <div className="group relative border border-[#141414] p-2 bg-white hover:bg-gray-50 transition-colors">
               <label className="block text-[8px] font-bold uppercase text-gray-400 mb-0.5 flex items-center gap-1">
                 <Calendar size={8} /> Periode
               </label>
-              <input 
-                type="text" 
-                value={period} 
-                onChange={(e) => setPeriod(e.target.value)}
-                className="w-full bg-transparent border-none focus:ring-0 font-bold text-base py-0 outline-none"
-              />
+              <div className="relative">
+                <select 
+                  value={period} 
+                  onChange={(e) => setPeriod(e.target.value)}
+                  className="w-full bg-transparent border-none focus:ring-0 font-bold text-base appearance-none cursor-pointer pr-8 outline-none"
+                >
+                  {["W&O5", "W&O6", "W&O7", "W&O8"].map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-[#009B48]">
+                  <ChevronDown size={16} />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -247,18 +274,30 @@ export default function App() {
                 className="text-center"
               >
                 <div className={`text-4xl font-black leading-none ${
-                   assessmentResult === "VOLDOENDE" ? "text-green-700" : "text-red-700"
+                   assessmentResult === "VOLDOENDE" ? "text-green-700" : 
+                   assessmentResult === "ONVOLDOENDE" ? "text-red-700" : "text-amber-700"
                 }`}>
                   {rowAnalysis.cijfer}
                 </div>
                 <div className={`text-[10px] font-bold uppercase tracking-widest leading-tight ${
-                  assessmentResult === "VOLDOENDE" ? "text-green-600" : "text-red-600"
+                  assessmentResult === "VOLDOENDE" ? "text-green-600" : 
+                  assessmentResult === "ONVOLDOENDE" ? "text-red-600" : "text-amber-600"
                 }`}>
                   {assessmentResult}
                 </div>
                 {rowAnalysis.hasZero && (
                   <div className="mt-1 text-[7px] font-bold text-red-500 uppercase max-w-[120px]">
                     Fail: Score 0 op {rowAnalysis.zeroReasons.join(", ")}
+                  </div>
+                )}
+                {prereqMet === false && (
+                  <div className="mt-1 text-[7px] font-bold text-red-500 uppercase max-w-[120px]">
+                    Fail: Voorwaarden NOK
+                  </div>
+                )}
+                {!beroepsproductenMet && (
+                  <div className="mt-1 text-[7px] font-bold text-red-500 uppercase max-w-[120px]">
+                    Fail: Producten missen
                   </div>
                 )}
               </motion.div>
@@ -405,7 +444,8 @@ export default function App() {
                       <span className="text-sm font-black">Cijfer: {rowAnalysis.cijfer}</span>
                     </div>
                     <div className={`px-2 py-0.5 text-[9px] font-black uppercase ${
-                      assessmentResult === 'VOLDOENDE' ? 'bg-white text-green-600' : 'bg-red-800 text-white'
+                      assessmentResult === 'VOLDOENDE' ? 'bg-white text-green-600' : 
+                      assessmentResult === 'ONVOLDOENDE' ? 'bg-red-800 text-white' : 'bg-amber-500 text-black'
                     }`}>
                       {assessmentResult}
                     </div>
@@ -463,7 +503,10 @@ export default function App() {
               <span className="text-2xl font-black">{rowAnalysis.cijfer}</span>
             </div>
             <div className="h-8 w-px bg-white/20 mx-3" />
-            <div className={`text-[10px] font-black uppercase ${assessmentResult.includes('VOLDOENDE') && !assessmentResult.includes('ONVOLDOENDE') ? 'text-green-300' : 'text-red-200'}`}>
+            <div className={`text-[10px] font-black uppercase ${
+              assessmentResult === 'VOLDOENDE' ? 'text-green-300' : 
+              assessmentResult === 'ONVOLDOENDE' ? 'text-red-200' : 'text-amber-200'
+            }`}>
               {assessmentResult}
             </div>
           </motion.div>
