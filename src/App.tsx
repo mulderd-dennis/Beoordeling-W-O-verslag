@@ -217,6 +217,10 @@ export default function App() {
     structure: false,
     format: false,
     products: false,
+    plagiarism: false,
+    aiUsage: false,
+    glossary: false,
+    apa: false,
   });
   const [prereqComment, setPrereqComment] = useState("");
 
@@ -327,6 +331,10 @@ export default function App() {
         structure: false,
         format: false,
         products: false,
+        plagiarism: false,
+        aiUsage: false,
+        glossary: false,
+        apa: false,
       });
       setPrereqComment("");
       setScores(COMPETENCIES.reduce((acc, comp) => ({
@@ -691,12 +699,12 @@ export default function App() {
                 }`}>
                   {prereqChecks.format && <span className="text-[10px] sm:text-xs font-black">✓</span>}
                 </div>
-                <span className="text-gray-700 font-medium select-none">Word bestand (*.doc / *.docx).</span>
+                <span className="text-gray-700 font-medium select-none">Word/PDF bestand (*.doc / *.docx / *.pdf).</span>
               </div>
 
               <div 
                 onClick={() => setPrereqChecks(prev => ({ ...prev, products: !prev.products }))}
-                className="flex items-center gap-2 cursor-pointer select-none py-0.5 group md:col-span-2"
+                className="flex items-center gap-2 cursor-pointer select-none py-0.5 group"
               >
                 <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all ${
                   prereqChecks.products ? 'bg-[#009B48] border-[#009B48] text-white' : 'border-gray-300 bg-white group-hover:border-[#009B48]'
@@ -714,6 +722,75 @@ export default function App() {
                       optioneel (jaar 1 & 2)
                     </span>
                   )}
+                </span>
+              </div>
+
+              {/* Informatieve velden die geen invloed hebben op het cijfer */}
+              <div 
+                onClick={() => setPrereqChecks(prev => ({ ...prev, plagiarism: !prev.plagiarism }))}
+                className="flex items-center gap-2 cursor-pointer select-none py-0.5 group"
+              >
+                <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all ${
+                  prereqChecks.plagiarism ? 'bg-[#009B48] border-[#009B48] text-white' : 'border-gray-300 bg-white group-hover:border-[#009B48]'
+                }`}>
+                  {prereqChecks.plagiarism && <span className="text-[10px] sm:text-xs font-black">✓</span>}
+                </div>
+                <span className="text-gray-700 font-medium select-none flex items-center gap-1.5 flex-wrap">
+                  <span>Plagiaat check</span>
+                  <span className="text-[7px] tracking-wider uppercase bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded leading-none">
+                    informatief (geen invloed)
+                  </span>
+                </span>
+              </div>
+
+              <div 
+                onClick={() => setPrereqChecks(prev => ({ ...prev, aiUsage: !prev.aiUsage }))}
+                className="flex items-center gap-2 cursor-pointer select-none py-0.5 group"
+              >
+                <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all ${
+                  prereqChecks.aiUsage ? 'bg-[#009B48] border-[#009B48] text-white' : 'border-gray-300 bg-white group-hover:border-[#009B48]'
+                }`}>
+                  {prereqChecks.aiUsage && <span className="text-[10px] sm:text-xs font-black">✓</span>}
+                </div>
+                <span className="text-gray-700 font-medium select-none flex items-center gap-1.5 flex-wrap">
+                  <span>Gebruik van AI</span>
+                  <span className="text-[7px] tracking-wider uppercase bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded leading-none">
+                    informatief (geen invloed)
+                  </span>
+                </span>
+              </div>
+
+              <div 
+                onClick={() => setPrereqChecks(prev => ({ ...prev, glossary: !prev.glossary }))}
+                className="flex items-center gap-2 cursor-pointer select-none py-0.5 group"
+              >
+                <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all ${
+                  prereqChecks.glossary ? 'bg-[#009B48] border-[#009B48] text-white' : 'border-gray-300 bg-white group-hover:border-[#009B48]'
+                }`}>
+                  {prereqChecks.glossary && <span className="text-[10px] sm:text-xs font-black">✓</span>}
+                </div>
+                <span className="text-gray-700 font-medium select-none flex items-center gap-1.5 flex-wrap">
+                  <span>Begrippenlijst</span>
+                  <span className="text-[7px] tracking-wider uppercase bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded leading-none">
+                    informatief (geen invloed)
+                  </span>
+                </span>
+              </div>
+
+              <div 
+                onClick={() => setPrereqChecks(prev => ({ ...prev, apa: !prev.apa }))}
+                className="flex items-center gap-2 cursor-pointer select-none py-0.5 group"
+              >
+                <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all ${
+                  prereqChecks.apa ? 'bg-[#009B48] border-[#009B48] text-white' : 'border-gray-300 bg-white group-hover:border-[#009B48]'
+                }`}>
+                  {prereqChecks.apa && <span className="text-[10px] sm:text-xs font-black">✓</span>}
+                </div>
+                <span className="text-gray-700 font-medium select-none flex items-center gap-1.5 flex-wrap">
+                  <span>APA</span>
+                  <span className="text-[7px] tracking-wider uppercase bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded leading-none">
+                    informatief (geen invloed)
+                  </span>
                 </span>
               </div>
             </div>
