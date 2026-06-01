@@ -215,7 +215,7 @@ export const RUBRICS: Record<number, Record<number | string, string>> = {
 };
 
 export const CATEGORIES = [
-  { id: 'A', title: 'Groei competentie ontwikkeling', description: 'De student beschrijft voor de competenties welke ontwikkeling hij heeft doorgemaakt in afgelopen periode.' },
+  { id: 'A', title: 'Niveau competentie ontwikkeling', description: 'De student beschrijft voor de competenties welke ontwikkeling hij heeft doorgemaakt in afgelopen periode.' },
   { id: 'B', title: 'Planning leerdoelen', description: 'De student beschrijft voor de competenties hoe aan de gekoppelde planning leerdoelen is gewerkt en wat hiervan de opbrengsten zijn.' },
   { id: 'C1', title: 'Reflectie 1', description: 'De student beschrijft per competentie reflectie-voorbeeld 1.' },
   { id: 'C2', title: 'Reflectie 2', description: 'De student beschrijft per competentie reflectie-voorbeeld 2.' },

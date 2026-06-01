@@ -194,15 +194,38 @@ const convertClonedModernStyles = (clonedDoc: Document) => {
   }
 };
 
+type LevelValue = 'A' | 'B' | 'C' | 'D' | 'E' | 'NA';
 type GradeValue = 0 | 1 | 2 | 3 | 4 | 'NA';
 
 interface CompetencyScore {
-  A: GradeValue;
+  A: LevelValue;
   B: GradeValue;
   C1: GradeValue;
   C2: GradeValue;
   toelichting: string;
 }
+
+const getALevelPoints = (val: LevelValue): number => {
+  switch (val) {
+    case 'A': return 4;
+    case 'B': return 3;
+    case 'C': return 2;
+    case 'D': return 1;
+    case 'E': return 0;
+    default: return 0;
+  }
+};
+
+const getRubricIndex = (val: LevelValue): number => {
+  switch (val) {
+    case 'A': return 4;
+    case 'B': return 3;
+    case 'C': return 2;
+    case 'D': return 1;
+    case 'E': return 1; // Ruby key is 1 to 4 max, map E (level 0) to index 1 as lowest
+    default: return 1;
+  }
+};
 
 export default function App() {
   // Assessment info
@@ -245,10 +268,10 @@ export default function App() {
       if (!hasNA) {
         activeRowsCount++;
         const rowVal = (v: GradeValue) => typeof v === 'number' ? v : 0;
-        const rowSum = rowVal(score.A) + rowVal(score.B) + rowVal(score.C1) + rowVal(score.C2);
+        const rowSum = getALevelPoints(score.A) + rowVal(score.B) + rowVal(score.C1) + rowVal(score.C2);
         totalPoints += rowSum;
 
-        if (score.A === 0 || score.B === 0 || score.C1 === 0 || score.C2 === 0) {
+        if (score.A === 'E' || score.B === 0 || score.C1 === 0 || score.C2 === 0) {
           hasZero = true;
           zeroReasons.push(comp.name);
         }
@@ -285,13 +308,19 @@ export default function App() {
     return "ONVOLDOENDE";
   }, [rowAnalysis, allPrereqsMet]);
 
-  const handleScoreChange = (compId: number, field: keyof CompetencyScore, value: number | string) => {
+  const handleScoreChange = (compId: number, field: keyof CompetencyScore, value: any) => {
     setScores(prev => {
       const currentScore = prev[compId];
       let newToelichting = currentScore.toelichting;
 
-      // Handle auto-toelichting for level 0
-      if (typeof value === 'number' && value === 0 && ['A', 'B', 'C1', 'C2'].includes(field)) {
+      // Handle auto-toelichting for level 0 / E
+      if (field === 'A' && value === 'E') {
+        const category = CATEGORIES.find(cat => cat.id === 'A');
+        const missingText = `${category?.title} ontbreekt (niveau E). Dit leidt tot een onvoldoende.`;
+        if (!newToelichting.includes(missingText)) {
+          newToelichting = newToelichting ? `${newToelichting.trim()}\n${missingText}` : missingText;
+        }
+      } else if (typeof value === 'number' && value === 0 && ['B', 'C1', 'C2'].includes(field)) {
         const category = CATEGORIES.find(cat => cat.id === (field === 'C1' ? 'C1' : field === 'C2' ? 'C2' : field));
         const missingText = `${category?.title} ontbreekt (niveau 0). Dit leidt tot een onvoldoende.`;
         
@@ -539,15 +568,19 @@ export default function App() {
                     const student = STUDENTS.find(s => s.id === e.target.value);
                     setSelectedStudent(student || null);
                   }}
-                  className="w-full bg-transparent border-none focus:ring-0 font-bold text-base appearance-none cursor-pointer pr-8 outline-none"
+                  className={`w-full bg-transparent border-none focus:ring-0 font-bold text-base appearance-none cursor-pointer pr-8 outline-none print:hidden ${isDownloading ? 'hidden' : ''}`}
                 >
                   <option value="">Selecteer student...</option>
                   {STUDENTS.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-[#009B48]">
+                <div className={`absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-[#009B48] print:hidden ${isDownloading ? 'hidden' : ''}`}>
                   <ChevronDown size={16} />
+                </div>
+                {/* Print/Download presentation */}
+                <div className={`hidden print:block font-bold text-base ${isDownloading ? '!block' : ''}`}>
+                  {selectedStudent?.name || "—"}
                 </div>
               </div>
             </div>
@@ -569,8 +602,12 @@ export default function App() {
                 type="text" 
                 value={assessor} 
                 onChange={(e) => setAssessor(e.target.value)}
-                className="w-full bg-transparent border-none focus:ring-0 font-bold text-base py-0 outline-none"
+                className={`w-full bg-transparent border-none focus:ring-0 font-bold text-base py-0 outline-none print:hidden ${isDownloading ? 'hidden' : ''}`}
               />
+              {/* Print/Download presentation */}
+              <div className={`hidden print:block font-bold text-base ${isDownloading ? '!block font-bold text-base' : ''}`}>
+                {assessor || "—"}
+              </div>
             </div>
 
             <div className="group relative border border-[#141414] p-2 bg-white hover:bg-gray-50 transition-colors">
@@ -581,14 +618,18 @@ export default function App() {
                 <select 
                   value={period} 
                   onChange={(e) => setPeriod(e.target.value)}
-                  className="w-full bg-transparent border-none focus:ring-0 font-bold text-base appearance-none cursor-pointer pr-8 outline-none"
+                  className={`w-full bg-transparent border-none focus:ring-0 font-bold text-base appearance-none cursor-pointer pr-8 outline-none print:hidden ${isDownloading ? 'hidden' : ''}`}
                 >
                   {["W&O1", "W&O2", "W&O3", "W&O4", "W&O5", "W&O6"].map(p => (
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-[#009B48]">
+                <div className={`absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-[#009B48] print:hidden ${isDownloading ? 'hidden' : ''}`}>
                   <ChevronDown size={16} />
+                </div>
+                {/* Print/Download presentation */}
+                <div className={`hidden print:block font-bold text-base ${isDownloading ? '!block' : ''}`}>
+                  {period || "—"}
                 </div>
               </div>
             </div>
@@ -795,13 +836,18 @@ export default function App() {
               </div>
             </div>
             
-            <div className="flex flex-row items-center gap-3 w-full md:w-auto">
+            <div className="flex flex-row items-center gap-3 w-full md:w-auto relative">
               <textarea 
                 placeholder="Toelichting..."
                 value={prereqComment}
                 onChange={(e) => setPrereqComment(e.target.value)}
-                className="w-full md:w-48 h-12 text-[10px] border-gray-200 focus:ring-[#009B48] focus:border-[#009B48] resize-none outline-none p-1.5 border shadow-inner rounded"
+                className="w-full md:w-48 h-12 text-[10px] border-gray-200 focus:ring-[#009B48] focus:border-[#009B48] resize-none outline-none p-1.5 border shadow-inner rounded print:hidden"
+                data-html2canvas-ignore={isDownloading ? "true" : undefined}
               />
+              <div className={`hidden print:block text-[10px] leading-tight p-1.5 border border-gray-200 rounded md:w-48 min-h-[3rem] break-words whitespace-pre-wrap bg-gray-50/50 ${isDownloading ? '!block' : ''}`}>
+                <span className="font-bold block text-[8px] text-gray-400 uppercase tracking-wider mb-0.5">Toelichting voorwaarden</span>
+                {prereqComment || <span className="text-gray-300 italic">Geen toelichting</span>}
+              </div>
             </div>
           </div>
         </section>
@@ -835,40 +881,73 @@ export default function App() {
                 
                 return (
                   <tr key={comp.id} className={`border-b border-gray-100 transition-colors hover:bg-gray-50/50 ${idx % 2 === 1 ? 'bg-gray-50/20' : ''} ${isExcluded ? 'opacity-40 grayscale-[0.5]' : ''}`}>
-                    <td className="p-1.5 border-r border-gray-100 group align-top">
+                    <td className="p-1.5 border-r border-gray-100 group align-top w-[20%]">
                       <div className="flex flex-col">
                         <span className={`font-bold text-[11px] leading-tight text-[#141414] ${isExcluded ? 'line-through' : ''}`}>{comp.name}</span>
                         <div className="mt-0.5 text-[9px] text-gray-400 line-clamp-1 leading-tight group-hover:text-gray-600 transition-colors">
-                          {RUBRICS[comp.id]?.[scoreObj.A === 'NA' ? 1 : (typeof scoreObj.A === 'number' && scoreObj.A > 0 ? scoreObj.A : 1)] || "..."}
+                          {RUBRICS[comp.id]?.[getRubricIndex(scoreObj.A)] || "..."}
                         </div>
                       </div>
                     </td>
                     {['A', 'B', 'C1', 'C2'].map(field => (
-                      <td key={field} className="p-1 border-r border-gray-100 align-middle">
-                        <div className="flex flex-col items-center gap-0.5">
+                      <td key={field} className="p-1 border-r border-gray-100 align-middle w-[10%]">
+                        <div className="flex flex-col items-center gap-0.5 relative pr-0">
                           <select 
                             value={scores[comp.id][field as keyof CompetencyScore]}
-                            onChange={(e) => handleScoreChange(comp.id, field as keyof CompetencyScore, e.target.value === 'NA' ? 'NA' : parseInt(e.target.value))}
-                            className={`w-10 h-7 text-center border-gray-200 rounded-none focus:ring-[#009B48] focus:border-[#009B48] font-bold text-xs p-0 appearance-none cursor-pointer outline-none border transition-all ${
-                              scores[comp.id][field as keyof CompetencyScore] === 0 ? 'text-red-500 bg-red-50 border-red-200' : 
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === 'NA') {
+                                handleScoreChange(comp.id, field as keyof CompetencyScore, 'NA');
+                              } else {
+                                const parsed = parseInt(val);
+                                handleScoreChange(comp.id, field as keyof CompetencyScore, isNaN(parsed) ? val : parsed);
+                              }
+                            }}
+                            className={`w-10 h-7 text-center border-gray-200 rounded-none focus:ring-[#009B48] focus:border-[#009B48] font-bold text-xs p-0 appearance-none cursor-pointer outline-none border transition-all print:hidden ${isDownloading ? 'hidden' : ''} ${
+                              scores[comp.id][field as keyof CompetencyScore] === 0 || scores[comp.id][field as keyof CompetencyScore] === 'E' ? 'text-red-500 bg-red-50 border-red-200' : 
                               scores[comp.id][field as keyof CompetencyScore] === 'NA' ? 'text-blue-500 bg-blue-50 border-blue-200' : 'text-[#009B48] border-gray-300'
                             }`}
                           >
-                            <option value="NA">NA</option>
-                            {[0, 1, 2, 3, 4].map(v => (
-                              <option key={v} value={v}>{v}</option>
-                            ))}
+                            {field === 'A' ? (
+                              <>
+                                <option value="NA">NA</option>
+                                {['A', 'B', 'C', 'D', 'E'].map(lvl => (
+                                  <option key={lvl} value={lvl}>{lvl}</option>
+                                ))}
+                              </>
+                            ) : (
+                              <>
+                                <option value="NA">NA</option>
+                                {[0, 1, 2, 3, 4].map(v => (
+                                  <option key={v} value={v}>{v}</option>
+                                ))}
+                              </>
+                            )}
                           </select>
+
+                          {/* Print/Download presentation div */}
+                          <div className={`hidden print:flex w-10 h-7 items-center justify-center font-bold text-xs border ${isDownloading ? '!flex' : ''} ${
+                            scores[comp.id][field as keyof CompetencyScore] === 0 || scores[comp.id][field as keyof CompetencyScore] === 'E' ? 'text-red-500 bg-red-50 border-red-200' : 
+                            scores[comp.id][field as keyof CompetencyScore] === 'NA' ? 'text-blue-500 bg-blue-50 border-blue-200' : 'text-[#009B48] border-gray-300'
+                          }`}>
+                            {scores[comp.id][field as keyof CompetencyScore]}
+                          </div>
                         </div>
                       </td>
                     ))}
-                    <td className="p-1 align-top">
+                    <td className="p-1 align-top w-[40%]">
+                      {/* Interactive textarea for screen */}
                       <textarea 
                         value={scores[comp.id].toelichting}
                         onChange={(e) => handleScoreChange(comp.id, 'toelichting', e.target.value)}
                         placeholder="Feedback..."
-                        className="w-full h-8 text-[10px] border border-transparent hover:border-gray-100 bg-transparent focus:bg-white focus:border-gray-200 resize-none transition-all p-1 outline-none leading-tight"
+                        className="w-full h-12 text-[10px] border border-transparent hover:border-gray-100 bg-transparent focus:bg-white focus:border-gray-200 resize-none transition-all p-1 outline-none leading-tight print:hidden"
+                        data-html2canvas-ignore={isDownloading ? "true" : undefined}
                       />
+                      {/* Printable/visible-on-pdf text container that auto-expands */}
+                      <div className={`hidden print:block text-[10px] leading-tight p-1 break-words whitespace-pre-wrap ${isDownloading ? '!block min-h-[3rem]' : ''}`}>
+                        {scores[comp.id].toelichting || <span className="text-gray-300 italic">Geen feedback</span>}
+                      </div>
                     </td>
                   </tr>
                 );
