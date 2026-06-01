@@ -268,17 +268,17 @@ export default function App() {
       if (!hasNA) {
         activeRowsCount++;
         const rowVal = (v: GradeValue) => typeof v === 'number' ? v : 0;
-        const rowSum = getALevelPoints(score.A) + rowVal(score.B) + rowVal(score.C1) + rowVal(score.C2);
+        const rowSum = rowVal(score.B) + rowVal(score.C1) + rowVal(score.C2);
         totalPoints += rowSum;
 
-        if (score.A === 'E' || score.B === 0 || score.C1 === 0 || score.C2 === 0) {
+        if (score.B === 0 || score.C1 === 0 || score.C2 === 0) {
           hasZero = true;
           zeroReasons.push(comp.name);
         }
       }
     });
 
-    const maxPoints = activeRowsCount * 16;
+    const maxPoints = activeRowsCount * 12;
     const cijferNum = maxPoints > 0 ? (totalPoints / maxPoints) * 9 + 1 : 0;
     const cijfer = maxPoints > 0 ? cijferNum.toFixed(1) : "—";
 
@@ -316,7 +316,7 @@ export default function App() {
       // Handle auto-toelichting for level 0 / E
       if (field === 'A' && value === 'E') {
         const category = CATEGORIES.find(cat => cat.id === 'A');
-        const missingText = `${category?.title} ontbreekt (niveau E). Dit leidt tot een onvoldoende.`;
+        const missingText = `${category?.title} is niveau E (nog niet aangetoond).`;
         if (!newToelichting.includes(missingText)) {
           newToelichting = newToelichting ? `${newToelichting.trim()}\n${missingText}` : missingText;
         }
@@ -380,6 +380,9 @@ export default function App() {
     if (!element) return;
 
     setIsDownloading(true);
+
+    // Give React a tick/frame to update the DOM so that the print/PDF-optimized layout is rendered
+    await new Promise(resolve => setTimeout(resolve, 150));
 
     const originalGetComputedStyle = window.getComputedStyle;
 
@@ -579,7 +582,7 @@ export default function App() {
                   <ChevronDown size={16} />
                 </div>
                 {/* Print/Download presentation */}
-                <div className={`hidden print:block font-bold text-base ${isDownloading ? '!block' : ''}`}>
+                <div className={`hidden print:!block font-bold text-base ${isDownloading ? '!block' : ''}`}>
                   {selectedStudent?.name || "—"}
                 </div>
               </div>
@@ -605,7 +608,7 @@ export default function App() {
                 className={`w-full bg-transparent border-none focus:ring-0 font-bold text-base py-0 outline-none print:hidden ${isDownloading ? 'hidden' : ''}`}
               />
               {/* Print/Download presentation */}
-              <div className={`hidden print:block font-bold text-base ${isDownloading ? '!block font-bold text-base' : ''}`}>
+              <div className={`hidden print:!block font-bold text-base ${isDownloading ? '!block font-bold text-base' : ''}`}>
                 {assessor || "—"}
               </div>
             </div>
@@ -628,7 +631,7 @@ export default function App() {
                   <ChevronDown size={16} />
                 </div>
                 {/* Print/Download presentation */}
-                <div className={`hidden print:block font-bold text-base ${isDownloading ? '!block' : ''}`}>
+                <div className={`hidden print:!block font-bold text-base ${isDownloading ? '!block' : ''}`}>
                   {period || "—"}
                 </div>
               </div>
@@ -844,7 +847,7 @@ export default function App() {
                 className="w-full md:w-48 h-12 text-[10px] border-gray-200 focus:ring-[#009B48] focus:border-[#009B48] resize-none outline-none p-1.5 border shadow-inner rounded print:hidden"
                 data-html2canvas-ignore={isDownloading ? "true" : undefined}
               />
-              <div className={`hidden print:block text-[10px] leading-tight p-1.5 border border-gray-200 rounded md:w-48 min-h-[3rem] break-words whitespace-pre-wrap bg-gray-50/50 ${isDownloading ? '!block' : ''}`}>
+              <div className={`hidden print:!block text-[10px] leading-tight p-1.5 border border-gray-200 rounded md:w-48 min-h-[3rem] break-words whitespace-pre-wrap bg-gray-50/50 ${isDownloading ? '!block' : ''}`}>
                 <span className="font-bold block text-[8px] text-gray-400 uppercase tracking-wider mb-0.5">Toelichting voorwaarden</span>
                 {prereqComment || <span className="text-gray-300 italic">Geen toelichting</span>}
               </div>
@@ -926,7 +929,7 @@ export default function App() {
                           </select>
 
                           {/* Print/Download presentation div */}
-                          <div className={`hidden print:flex w-10 h-7 items-center justify-center font-bold text-xs border ${isDownloading ? '!flex' : ''} ${
+                          <div className={`hidden print:!flex w-10 h-7 items-center justify-center font-bold text-xs border ${isDownloading ? '!flex' : ''} ${
                             scores[comp.id][field as keyof CompetencyScore] === 0 || scores[comp.id][field as keyof CompetencyScore] === 'E' ? 'text-red-500 bg-red-50 border-red-200' : 
                             scores[comp.id][field as keyof CompetencyScore] === 'NA' ? 'text-blue-500 bg-blue-50 border-blue-200' : 'text-[#009B48] border-gray-300'
                           }`}>
@@ -945,7 +948,7 @@ export default function App() {
                         data-html2canvas-ignore={isDownloading ? "true" : undefined}
                       />
                       {/* Printable/visible-on-pdf text container that auto-expands */}
-                      <div className={`hidden print:block text-[10px] leading-tight p-1 break-words whitespace-pre-wrap ${isDownloading ? '!block min-h-[3rem]' : ''}`}>
+                      <div className={`hidden print:!block text-[10px] leading-tight p-1 break-words whitespace-pre-wrap ${isDownloading ? '!block min-h-[3rem]' : ''}`}>
                         {scores[comp.id].toelichting || <span className="text-gray-300 italic">Geen feedback</span>}
                       </div>
                     </td>
